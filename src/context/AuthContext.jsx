@@ -66,29 +66,46 @@ export const AuthProvider = ({ children }) => {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('Auth state changed:', event);
+            // Only process INITIAL_SESSION and SIGNED_IN events to avoid unnecessary calls
+            if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') {
+                if (!session?.user) {
+                    setAuthUser(null);
+                    setUser(null);
+                }
+                return;
+            }
 
             try {
                 if (session?.user) {
                     setAuthUser(session.user);
-                    // Fetch user profile
-                    let profile = await getUserProfile(session.user.id);
 
-                    // If profile doesn't exist, create it with defaults
-                    // This ensures consistency with the signIn flow
+                    // Fetch user profile with retry logic
+                    let profile = null;
+                    let retries = 2;
+
+                    while (!profile && retries > 0) {
+                        try {
+                            profile = await getUserProfile(session.user.id);
+                            if (profile) break;
+                        } catch (err) {
+                            retries--;
+                            if (retries > 0) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        }
+                    }
+
+                    // If profile doesn't exist after retries, create it
                     if (!profile) {
-                        console.log('No profile found in auth state change, creating default profile...');
                         try {
                             profile = await createUserProfile({
                                 firebase_uid: session.user.id,
                                 name: session.user.email?.split('@')[0] || 'User',
-                                city: 'Lagos' // Default city
+                                city: 'Lagos'
                             });
                         } catch (createError) {
                             console.error('Failed to create profile in auth state change:', createError);
-                            // If profile creation fails, sign out to clear the session
-                            await supabase.auth.signOut();
-                            setAuthUser(null);
+                            // Don't sign out - just set user to null and let them try again
                             setUser(null);
                             return;
                         }
@@ -101,7 +118,7 @@ export const AuthProvider = ({ children }) => {
                 }
             } catch (error) {
                 console.error('Error in auth state change:', error);
-                setAuthUser(null);
+                // Don't clear auth, just clear user profile
                 setUser(null);
             }
         });

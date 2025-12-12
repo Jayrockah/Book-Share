@@ -44,12 +44,12 @@ export const getUserProfile = async (authUserId) => {
     try {
         if (!authUserId) return null;
 
-        // Increased timeout to 15 seconds for slow connections
+        // Increased timeout to 20 seconds for slow connections
         const timeoutPromise = new Promise((resolve) =>
             setTimeout(() => {
                 // Silently timeout and return null (profile will be created if needed)
-                resolve({ data: null, error: new Error('Query timeout') });
-            }, 15000)
+                resolve({ data: null, error: { code: 'TIMEOUT' } });
+            }, 20000)
         );
 
         const queryPromise = supabase
@@ -65,7 +65,11 @@ export const getUserProfile = async (authUserId) => {
             if (error.code === 'PGRST116') {
                 return null;
             }
-            console.error('❌ Get user profile error:', error.message);
+            // Timeout is expected and handled gracefully
+            if (error.code === 'TIMEOUT') {
+                return null;
+            }
+            console.error('❌ Get user profile error:', error.message || error);
             return null;
         }
 
