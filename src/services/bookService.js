@@ -14,20 +14,25 @@ import { supabase } from './supabaseClient';
  */
 export const createBook = async (bookData) => {
     try {
+        // Build insert object - only include cover_photo_url if column exists
+        const insertData = {
+            owner_id: bookData.owner_id,
+            title: bookData.title,
+            author: bookData.author,
+            genre: bookData.genre,
+            condition: bookData.condition,
+            notes: bookData.notes || null,
+            status: 'Available'
+        };
+
+        // Only add cover_photo_url if provided (column may not exist in DB yet)
+        if (bookData.cover_photo_url) {
+            insertData.cover_photo_url = bookData.cover_photo_url;
+        }
+
         const { data, error } = await supabase
             .from('books')
-            .insert([
-                {
-                    owner_id: bookData.owner_id,
-                    title: bookData.title,
-                    author: bookData.author,
-                    genre: bookData.genre,
-                    condition: bookData.condition,
-                    cover_photo_url: bookData.cover_photo_url || null,
-                    notes: bookData.notes || null,
-                    status: 'Available'
-                }
-            ])
+            .insert([insertData])
             .select(`
                 *,
                 owner:users!owner_id (
@@ -66,7 +71,6 @@ export const fetchAvailableBooks = async () => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -93,7 +97,7 @@ export const fetchAvailableBooks = async () => {
             author: book.author || 'Unknown Author',
             genre: book.genre || 'Unknown',
             condition: book.condition || 'Good',
-            coverUrl: book.cover_photo_url || null,
+            coverUrl: book.cover_photo_url || book.cover_url || null,
             status: book.status || 'Available',
             dueDate: book.due_date || null,
             // Owner information (with fallbacks)
@@ -125,7 +129,6 @@ export const fetchAllBooks = async () => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -150,7 +153,7 @@ export const fetchAllBooks = async () => {
             author: book.author || 'Unknown Author',
             genre: book.genre || 'Unknown',
             condition: book.condition || 'Good',
-            coverUrl: book.cover_photo_url || null,
+            coverUrl: book.cover_photo_url || book.cover_url || null,
             status: book.status || 'Available',
             dueDate: book.due_date || null,
             ownerName: book.owner?.name || 'Unknown Owner',
@@ -204,7 +207,6 @@ export const fetchFeaturedBook = async () => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -249,7 +251,6 @@ export const fetchTrendingBooks = async (limit = 8) => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -292,7 +293,6 @@ export const fetchNewArrivals = async (limit = 10) => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -338,7 +338,6 @@ export const fetchBooksByHighRatedOwners = async (limit = 12) => {
                 author,
                 genre,
                 condition,
-                cover_photo_url,
                 status,
                 due_date,
                 created_at,
