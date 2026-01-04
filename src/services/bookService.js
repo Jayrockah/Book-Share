@@ -8,7 +8,7 @@ import { supabase } from './supabaseClient';
  * @param {string} bookData.author - Book author
  * @param {string} bookData.genre - Book genre
  * @param {string} bookData.condition - Book condition ('New', 'Good', or 'Worn')
- * @param {string} bookData.cover_url - URL to book cover image (optional)
+ * @param {string} bookData.cover_photo_url - URL to book cover image (optional)
  * @param {string} bookData.notes - Additional notes (optional)
  * @returns {Promise<Object>} Created book or error
  */
@@ -23,7 +23,7 @@ export const createBook = async (bookData) => {
                     author: bookData.author,
                     genre: bookData.genre,
                     condition: bookData.condition,
-                    cover_url: bookData.cover_url || null,
+                    cover_photo_url: bookData.cover_photo_url || null,
                     notes: bookData.notes || null,
                     status: 'Available'
                 }
@@ -40,14 +40,13 @@ export const createBook = async (bookData) => {
             .single();
 
         if (error) {
-            console.error('❌ Create book error:', error.message);
+            console.error('Create book error:', error.message);
             throw error;
         }
 
-        console.log('✅ Book created:', data);
         return { success: true, book: data };
     } catch (error) {
-        console.error('❌ Unexpected error creating book:', error);
+        console.error('Unexpected error creating book:', error);
         return { success: false, error: error.message };
     }
 };
@@ -67,7 +66,7 @@ export const fetchAvailableBooks = async () => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -82,19 +81,19 @@ export const fetchAvailableBooks = async () => {
             .order('created_at', { ascending: false });
 
         if (error) {
-            console.error('❌ Supabase book fetch error:', error.message);
+            console.error('Supabase book fetch error:', error.message);
             return [];
         }
 
         // Transform data to match expected format for HomePage
-        const transformedBooks = (data || []).map(book => ({
+        return (data || []).map(book => ({
             id: book.id,
             ownerId: book.owner_id,
             title: book.title || 'Untitled',
             author: book.author || 'Unknown Author',
             genre: book.genre || 'Unknown',
             condition: book.condition || 'Good',
-            coverUrl: book.cover_url || null,
+            coverUrl: book.cover_photo_url || null,
             status: book.status || 'Available',
             dueDate: book.due_date || null,
             // Owner information (with fallbacks)
@@ -105,11 +104,8 @@ export const fetchAvailableBooks = async () => {
             waitlistPosition: null,
             waitlistCount: 0
         }));
-
-        console.log('✅ Fetched books from Supabase:', transformedBooks.length, 'books');
-        return transformedBooks;
     } catch (error) {
-        console.error('❌ Unexpected error fetching books:', error);
+        console.error('Unexpected error fetching books:', error);
         return [];
     }
 };
@@ -129,7 +125,7 @@ export const fetchAllBooks = async () => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -154,7 +150,7 @@ export const fetchAllBooks = async () => {
             author: book.author || 'Unknown Author',
             genre: book.genre || 'Unknown',
             condition: book.condition || 'Good',
-            coverUrl: book.cover_url || null,
+            coverUrl: book.cover_photo_url || null,
             status: book.status || 'Available',
             dueDate: book.due_date || null,
             ownerName: book.owner?.name || 'Unknown Owner',
@@ -208,7 +204,7 @@ export const fetchFeaturedBook = async () => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -253,7 +249,7 @@ export const fetchTrendingBooks = async (limit = 8) => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -296,7 +292,7 @@ export const fetchNewArrivals = async (limit = 10) => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,
@@ -342,7 +338,7 @@ export const fetchBooksByHighRatedOwners = async (limit = 12) => {
                 author,
                 genre,
                 condition,
-                cover_url,
+                cover_photo_url,
                 status,
                 due_date,
                 created_at,

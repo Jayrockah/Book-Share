@@ -23,11 +23,10 @@ export const createUserProfile = async (userData) => {
             .single();
 
         if (error) {
-            console.error('❌ Create user profile error:', error.message);
+            console.error('Create user profile error:', error.message);
             throw error;
         }
 
-        console.log('✅ User profile created:', data);
         return data;
     } catch (error) {
         console.error('❌ Unexpected error creating user profile:', error);
@@ -44,38 +43,24 @@ export const getUserProfile = async (authUserId) => {
     try {
         if (!authUserId) return null;
 
-        // Increased timeout to 20 seconds for slow connections
-        const timeoutPromise = new Promise((resolve) =>
-            setTimeout(() => {
-                // Silently timeout and return null (profile will be created if needed)
-                resolve({ data: null, error: { code: 'TIMEOUT' } });
-            }, 20000)
-        );
-
-        const queryPromise = supabase
+        const { data, error } = await supabase
             .from('users')
             .select('*')
             .eq('firebase_uid', authUserId)
             .single();
-
-        const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
         if (error) {
             // Not found is not an error for this use case
             if (error.code === 'PGRST116') {
                 return null;
             }
-            // Timeout is expected and handled gracefully
-            if (error.code === 'TIMEOUT') {
-                return null;
-            }
-            console.error('❌ Get user profile error:', error.message || error);
+            console.error('Get user profile error:', error.message || error);
             return null;
         }
 
         return data;
     } catch (error) {
-        console.error('❌ Unexpected error fetching user profile:', error);
+        console.error('Unexpected error fetching user profile:', error);
         return null;
     }
 };
@@ -96,14 +81,13 @@ export const updateUserProfile = async (userId, updates) => {
             .single();
 
         if (error) {
-            console.error('❌ Update user profile error:', error.message);
+            console.error('Update user profile error:', error.message);
             throw error;
         }
 
-        console.log('✅ User profile updated:', data);
         return data;
     } catch (error) {
-        console.error('❌ Unexpected error updating user profile:', error);
+        console.error('Unexpected error updating user profile:', error);
         throw error;
     }
 };
@@ -124,13 +108,13 @@ export const fetchUserById = async (userId) => {
             .single();
 
         if (error) {
-            console.error('❌ Supabase user fetch error:', error.message);
+            console.error('Supabase user fetch error:', error.message);
             return null;
         }
 
         return data;
     } catch (error) {
-        console.error('❌ Unexpected error fetching user:', error);
+        console.error('Unexpected error fetching user:', error);
         return null;
     }
 };
@@ -150,7 +134,7 @@ export const fetchUsersByIds = async (userIds) => {
             .in('id', userIds);
 
         if (error) {
-            console.error('❌ Supabase users fetch error:', error.message);
+            console.error('Supabase users fetch error:', error.message);
             return {};
         }
 
@@ -162,7 +146,7 @@ export const fetchUsersByIds = async (userIds) => {
 
         return usersMap;
     } catch (error) {
-        console.error('❌ Unexpected error fetching users:', error);
+        console.error('Unexpected error fetching users:', error);
         return {};
     }
 };

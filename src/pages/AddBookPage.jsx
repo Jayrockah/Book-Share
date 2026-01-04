@@ -79,7 +79,7 @@ const AddBookPage = () => {
                 author: selectedBook.volumeInfo.authors ? selectedBook.volumeInfo.authors.join(', ') : 'Unknown Author',
                 genre: genre.trim(),
                 condition,
-                cover_url: selectedBook.volumeInfo.imageLinks?.thumbnail || null,
+                cover_photo_url: selectedBook.volumeInfo.imageLinks?.thumbnail || null,
                 notes: notes.trim() || null
             });
 

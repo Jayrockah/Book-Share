@@ -10,6 +10,12 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Safety timeout to ensure loading never gets stuck
+        const safetyTimeout = setTimeout(() => {
+            console.warn('Auth initialization exceeded 10s - forcing loading to false');
+            setLoading(false);
+        }, 10000);
+
         // Check for existing session
         const initAuth = async () => {
             try {
@@ -31,7 +37,6 @@ export const AuthProvider = ({ children }) => {
 
                     // If profile doesn't exist, create it with defaults
                     if (!profile) {
-                        console.log('No profile found during init, creating default profile...');
                         try {
                             profile = await createUserProfile({
                                 firebase_uid: session.user.id,
@@ -59,6 +64,7 @@ export const AuthProvider = ({ children }) => {
                 setUser(null);
             } finally {
                 // ALWAYS set loading to false, even on error or timeout
+                clearTimeout(safetyTimeout);
                 setLoading(false);
             }
         };
@@ -185,7 +191,7 @@ export const AuthProvider = ({ children }) => {
             });
 
             if (error) {
-                console.error('❌ Supabase auth error:', error);
+                console.error('Auth error:', error.message);
                 return { success: false, error: error.message };
             }
 

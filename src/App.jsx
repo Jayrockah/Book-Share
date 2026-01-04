@@ -25,9 +25,18 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   const showNavbar = user && location.pathname !== '/login' && location.pathname !== '/';
+
+  // Show minimal loading state while auth initializes
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'system-ui' }}>
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div id="app">

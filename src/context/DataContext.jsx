@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { db } from '../services/MockDatabase';
+import { db } from '../services/MockDatabase'; // TODO: Migrate organization & transaction features to Supabase
 import { useAuth } from './AuthContext';
 import { fetchAllBooks, createBook } from '../services/bookService';
 
@@ -20,18 +20,23 @@ export const DataProvider = ({ children }) => {
     const [transactions, setTransactions] = useState([]);
 
     const refreshData = async () => {
-        // Fetch books from Supabase instead of MockDatabase
-        const supabaseBooks = await fetchAllBooks();
-        setBooks(supabaseBooks);
+        try {
+            // Fetch books from Supabase
+            const supabaseBooks = await fetchAllBooks();
+            setBooks(supabaseBooks || []);
 
-        if (user) {
-            setRequests([...db.getRequestsForUser(user.id)]);
-            setWaitlist([...db.data.waitlist]);
-            setTransactions([...db.getTransactionsForUser(user.id)]);
-        } else {
-            setRequests([]);
-            setWaitlist([]);
-            setTransactions([]);
+            if (user) {
+                setRequests([...db.getRequestsForUser(user.id)]);
+                setWaitlist([...db.data.waitlist]);
+                setTransactions([...db.getTransactionsForUser(user.id)]);
+            } else {
+                setRequests([]);
+                setWaitlist([]);
+                setTransactions([]);
+            }
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+            setBooks([]);
         }
     };
 
@@ -64,13 +69,11 @@ export const DataProvider = ({ children }) => {
             author: bookData.author,
             genre: bookData.genre,
             condition: bookData.condition,
-            cover_url: bookData.coverUrl || null,
+            cover_photo_url: bookData.coverUrl || null,
             notes: bookData.notes || null
         });
 
         if (result.success) {
-            // Also add to MockDatabase for backward compatibility
-            db.addBook({ ...bookData, ownerId: user.id });
             // Refresh to get the latest books from Supabase
             await refreshData();
             return { success: true, message: 'Book added successfully!' };
