@@ -10,62 +10,83 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Safety timeout to ensure loading never gets stuck
+        let mounted = true;
+
+        // Absolute safety timeout - GUARANTEES loading ends within 8 seconds
         const safetyTimeout = setTimeout(() => {
-            console.warn('Auth initialization exceeded 10s - forcing loading to false');
-            setLoading(false);
-        }, 10000);
+            if (mounted) {
+                console.warn('⏱️ Auth init timeout - forcing loading=false');
+                setLoading(false);
+            }
+        }, 8000);
 
         // Check for existing session
         const initAuth = async () => {
             try {
-                // Get session - this is usually very fast, no timeout needed
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                console.log('🔐 Starting auth init...');
+
+                // Step 1: Get session (with timeout)
+                const sessionPromise = supabase.auth.getSession();
+                const sessionTimeout = new Promise((resolve) =>
+                    setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session timeout' } }), 3000)
+                );
+
+                const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, sessionTimeout]);
 
                 if (sessionError) {
-                    console.error('Session error:', sessionError);
+                    console.error('Session error:', sessionError.message);
                     setAuthUser(null);
                     setUser(null);
                     setLoading(false);
+                    clearTimeout(safetyTimeout);
                     return;
                 }
 
-                if (session?.user) {
-                    setAuthUser(session.user);
-                    // Fetch user profile from our users table
-                    let profile = await getUserProfile(session.user.id);
-
-                    // If profile doesn't exist, create it with defaults
-                    if (!profile) {
-                        try {
-                            profile = await createUserProfile({
-                                firebase_uid: session.user.id,
-                                name: session.user.email?.split('@')[0] || 'User',
-                                city: 'Lagos'
-                            });
-                        } catch (createError) {
-                            console.error('Failed to create profile during init:', createError);
-                            // Don't sign out - just set user to null
-                            setUser(null);
-                            setLoading(false);
-                            return;
-                        }
-                    }
-
-                    setUser(profile);
-                } else {
+                if (!session?.user) {
+                    console.log('ℹ️ No active session');
                     setAuthUser(null);
                     setUser(null);
+                    setLoading(false);
+                    clearTimeout(safetyTimeout);
+                    return;
+                }
+
+                console.log('👤 Session found, fetching profile...');
+                setAuthUser(session.user);
+
+                // Step 2: Get profile (with timeout)
+                const profilePromise = getUserProfile(session.user.id);
+                const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+
+                let profile = await Promise.race([profilePromise, profileTimeout]);
+
+                // Step 3: Create profile if missing (with timeout)
+                if (!profile) {
+                    console.log('📝 Creating profile...');
+                    const createPromise = createUserProfile({
+                        firebase_uid: session.user.id,
+                        name: session.user.email?.split('@')[0] || 'User',
+                        city: 'Lagos'
+                    });
+                    const createTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+
+                    profile = await Promise.race([createPromise, createTimeout]);
+                }
+
+                if (mounted) {
+                    setUser(profile);
+                    setLoading(false);
+                    clearTimeout(safetyTimeout);
+                    console.log('✅ Auth init complete');
                 }
             } catch (error) {
-                console.error('Error initializing auth:', error);
-                // Clear session on init error
-                setAuthUser(null);
-                setUser(null);
-            } finally {
-                // ALWAYS set loading to false, even on error or timeout
-                clearTimeout(safetyTimeout);
-                setLoading(false);
+                console.error('Auth init error:', error);
+                if (mounted) {
+                    setAuthUser(null);
+                    setUser(null);
+                    setLoading(false);
+                    clearTimeout(safetyTimeout);
+                }
             }
         };
 
@@ -131,6 +152,8 @@ export const AuthProvider = ({ children }) => {
         });
 
         return () => {
+            mounted = false;
+            clearTimeout(safetyTimeout);
             subscription?.unsubscribe();
         };
     }, []);

@@ -103,7 +103,7 @@ export const fetchUserById = async (userId) => {
 
         const { data, error } = await supabase
             .from('users')
-            .select('id, name, city, reputation, profile_photo_url, is_admin')
+            .select('id, name, city, reputation, is_admin')
             .eq('id', userId)
             .single();
 
@@ -130,7 +130,7 @@ export const fetchUsersByIds = async (userIds) => {
 
         const { data, error } = await supabase
             .from('users')
-            .select('id, name, city, reputation, profile_photo_url, is_admin')
+            .select('id, name, city, reputation, is_admin')
             .in('id', userIds);
 
         if (error) {
