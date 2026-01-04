@@ -12,23 +12,23 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         let mounted = true;
 
-        // Absolute safety timeout - GUARANTEES loading ends within 8 seconds
+        // Absolute safety timeout - GUARANTEES loading ends within 12 seconds
         const safetyTimeout = setTimeout(() => {
             if (mounted) {
                 console.warn('⏱️ Auth init timeout - forcing loading=false');
                 setLoading(false);
             }
-        }, 8000);
+        }, 12000);
 
         // Check for existing session
         const initAuth = async () => {
             try {
                 console.log('🔐 Starting auth init...');
 
-                // Step 1: Get session (with timeout)
+                // Step 1: Get session (with generous timeout for restored projects)
                 const sessionPromise = supabase.auth.getSession();
                 const sessionTimeout = new Promise((resolve) =>
-                    setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session timeout' } }), 3000)
+                    setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session timeout' } }), 7000)
                 );
 
                 const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, sessionTimeout]);
@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }) => {
 
                 // Step 2: Get profile (with timeout)
                 const profilePromise = getUserProfile(session.user.id);
-                const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+                const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
 
                 let profile = await Promise.race([profilePromise, profileTimeout]);
 
