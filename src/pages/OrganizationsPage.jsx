@@ -11,11 +11,14 @@ const OrganizationsPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredCard, setHoveredCard] = useState(null);
 
-    const filteredOrganizations = organizations.filter(org =>
-        (cityFilter === 'All' || org.city === cityFilter) &&
-        (org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            org.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredOrganizations = organizations.filter(org => {
+        if (!org) return false;
+        const matchesCity = cityFilter === 'All' || org.city === cityFilter;
+        const matchesSearch = !searchTerm ||
+            (org.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             org.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesCity && matchesSearch;
+    });
 
     const getCardStyle = (orgId) => ({
         cursor: 'pointer',
@@ -72,9 +75,17 @@ const OrganizationsPage = () => {
                     </div>
                 ) : (
                     filteredOrganizations.map(org => {
-                        const memberCount = db.getOrganizationMembers(org.id).length;
-                        const bookCount = db.getOrganizationBooks(org.id).length;
-                        const isMember = user && db.isOrganizationMember(org.id, user.id);
+                        let memberCount = 0;
+                        let bookCount = 0;
+                        let isMember = false;
+
+                        try {
+                            memberCount = db.getOrganizationMembers(org.id).length;
+                            bookCount = db.getOrganizationBooks(org.id).length;
+                            isMember = user && db.isOrganizationMember(org.id, user.id);
+                        } catch (error) {
+                            console.error('Error loading organization data:', error);
+                        }
 
                         return (
                             <Link

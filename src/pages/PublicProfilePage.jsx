@@ -22,7 +22,13 @@ const PublicProfilePage = () => {
         contactValue: ''
     });
 
-    const user = db.getUserById(userId);
+    let user = null;
+    try {
+        user = db.getUserById(userId);
+    } catch (error) {
+        console.error('Error fetching user:', error);
+    }
+
     const userBooks = books.filter(b => b.ownerId === userId);
     const isTrustedBorrower = user && user.reputation >= 4.5;
 
@@ -76,7 +82,7 @@ const PublicProfilePage = () => {
                     <img src={user.profilePhoto} style={{ width: '80px', height: '80px', borderRadius: '50%', marginRight: '24px' }} alt="Avatar" />
                 ) : (
                     <div style={{ width: '80px', height: '80px', borderRadius: '50%', marginRight: '24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', color: 'white', fontWeight: '600' }}>
-                        {user.name[0]}
+                        {user.name?.[0] || '?'}
                     </div>
                 )}
                 <div>
