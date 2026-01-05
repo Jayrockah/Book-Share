@@ -26,17 +26,26 @@ const AdminPage = () => {
         }
 
         // Load statistics and users
-        const statistics = db.getUserStatistics();
-        setStats(statistics);
-        setUsers(db.getUsers());
-    }, [user, navigate]);
+        try {
+            const statistics = db.getUserStatistics();
+            setStats(statistics);
+            setUsers(db.getUsers());
+        } catch (error) {
+            console.error('Error loading admin data:', error);
+            addToast('Failed to load admin dashboard data', 'error');
+        }
+    }, [user, navigate, addToast]);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleBan = (userId) => {
         const result = banUser(userId);
         addToast(result.message, result.success ? 'success' : 'error');
         if (result.success) {
-            setUsers(db.getUsers());
+            try {
+                setUsers(db.getUsers());
+            } catch (error) {
+                console.error('Error refreshing users:', error);
+            }
         }
     };
 
@@ -44,7 +53,11 @@ const AdminPage = () => {
         const result = unbanUser(userId);
         addToast(result.message, result.success ? 'success' : 'error');
         if (result.success) {
-            setUsers(db.getUsers());
+            try {
+                setUsers(db.getUsers());
+            } catch (error) {
+                console.error('Error refreshing users:', error);
+            }
         }
     };
 
@@ -117,7 +130,7 @@ const AdminPage = () => {
             )}
 
             {/* Overdue Books */}
-            {stats && stats.overdueBooks.length > 0 && (
+            {stats && stats.overdueBooks?.length > 0 && (
                 <>
                     <h3 ref={overdueSectionRef}>Overdue Books</h3>
                     <div className="section">

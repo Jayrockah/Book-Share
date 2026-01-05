@@ -42,7 +42,7 @@ const AddBookPage = () => {
         setSelectedBook(book);
         setSearchResults([]); // Clear results to show selection
         // Auto-detect genre if possible
-        const categories = book.volumeInfo.categories;
+        const categories = book.volumeInfo?.categories;
         if (categories && categories.length > 0) {
             setGenre(categories[0]);
         }
@@ -73,13 +73,14 @@ const AddBookPage = () => {
         }
 
         try {
+            const volumeInfo = selectedBook.volumeInfo || {};
             const result = await createBook({
                 owner_id: user.id,
-                title: selectedBook.volumeInfo.title,
-                author: selectedBook.volumeInfo.authors ? selectedBook.volumeInfo.authors.join(', ') : 'Unknown Author',
+                title: volumeInfo.title || 'Untitled',
+                author: volumeInfo.authors ? volumeInfo.authors.join(', ') : 'Unknown Author',
                 genre: genre.trim(),
                 condition,
-                cover_photo_url: selectedBook.volumeInfo.imageLinks?.thumbnail || null,
+                cover_photo_url: volumeInfo.imageLinks?.thumbnail || null,
                 notes: notes.trim() || null
             });
 
