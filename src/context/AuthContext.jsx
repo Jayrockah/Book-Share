@@ -55,18 +55,36 @@ export const AuthProvider = ({ children }) => {
                 // Step 3: Create profile if missing
                 if (!profile) {
                     console.log('📝 Creating profile...');
-                    profile = await createUserProfile({
-                        firebase_uid: session.user.id,
-                        name: session.user.email?.split('@')[0] || 'User',
-                        city: 'Lagos'
-                    });
+                    try {
+                        profile = await createUserProfile({
+                            firebase_uid: session.user.id,
+                            name: session.user.email?.split('@')[0] || 'User',
+                            city: 'Lagos'
+                        });
+                    } catch (createError) {
+                        console.error('Failed to create profile during init:', createError);
+                        // Profile creation failed - sign out and show login
+                        await supabase.auth.signOut();
+                        setAuthUser(null);
+                        setUser(null);
+                        setLoading(false);
+                        clearTimeout(safetyTimeout);
+                        return;
+                    }
                 }
 
-                if (mounted) {
+                // Only proceed if we have a valid profile
+                if (mounted && profile) {
                     setUser(profile);
                     setLoading(false);
                     clearTimeout(safetyTimeout);
                     console.log('✅ Auth init complete');
+                } else {
+                    console.error('No profile available after init');
+                    setAuthUser(null);
+                    setUser(null);
+                    setLoading(false);
+                    clearTimeout(safetyTimeout);
                 }
             } catch (error) {
                 console.error('Auth init error:', error);
@@ -222,15 +240,22 @@ export const AuthProvider = ({ children }) => {
             // Step 3: Create profile if missing
             if (!profile) {
                 console.log('📝 Creating profile for sign in...');
-                profile = await createUserProfile({
-                    firebase_uid: data.user.id,
-                    name: data.user.email?.split('@')[0] || 'User',
-                    city: 'Lagos'
-                });
-
-                if (!profile) {
-                    return { success: false, error: 'Failed to create profile. Please try again.' };
+                try {
+                    profile = await createUserProfile({
+                        firebase_uid: data.user.id,
+                        name: data.user.email?.split('@')[0] || 'User',
+                        city: 'Lagos'
+                    });
+                } catch (createError) {
+                    console.error('Profile creation failed:', createError);
+                    return { success: false, error: 'Failed to create your profile. Please try again.' };
                 }
+            }
+
+            // Verify we have a valid profile before proceeding
+            if (!profile || !profile.id) {
+                console.error('Invalid profile after sign in');
+                return { success: false, error: 'Profile data is invalid. Please contact support.' };
             }
 
             setAuthUser(data.user);
