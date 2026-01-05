@@ -73,8 +73,9 @@ const LoginPage = () => {
                 // Sign in flow
                 const result = await signIn(formData.email, formData.password);
 
-                if (result.success) {
-                    addToast(`Welcome back, ${result.user.name.split(' ')[0]}!`, 'success');
+                if (result.success && result.user) {
+                    const firstName = result.user.name?.split(' ')[0] || 'there';
+                    addToast(`Welcome back, ${firstName}!`, 'success');
                     navigate('/home');
                 } else {
                     addToast(result.error || 'Login failed', 'error');

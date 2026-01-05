@@ -24,19 +24,27 @@ export const DataProvider = ({ children }) => {
             // Fetch books from Supabase
             const supabaseBooks = await fetchAllBooks();
             setBooks(supabaseBooks || []);
+        } catch (error) {
+            console.error('Error refreshing books:', error);
+            setBooks([]);
+        }
 
-            if (user) {
+        // Fetch user data from MockDatabase (separate try-catch to prevent crashes)
+        if (user) {
+            try {
                 setRequests([...db.getRequestsForUser(user.id)]);
                 setWaitlist([...db.data.waitlist]);
                 setTransactions([...db.getTransactionsForUser(user.id)]);
-            } else {
+            } catch (dbError) {
+                console.error('Error loading user data from MockDatabase:', dbError);
                 setRequests([]);
                 setWaitlist([]);
                 setTransactions([]);
             }
-        } catch (error) {
-            console.error('Error refreshing data:', error);
-            setBooks([]);
+        } else {
+            setRequests([]);
+            setWaitlist([]);
+            setTransactions([]);
         }
     };
 
@@ -126,7 +134,9 @@ export const DataProvider = ({ children }) => {
         // Double-check borrow limit before approval
         if (!db.canUserBorrow(request.requesterId)) {
             const activeBorrows = db.getUserActiveBorrows(request.requesterId);
-            return { success: false, message: `${requester?.name} has reached their borrow limit (${activeBorrows}/${requester?.borrowLimit})` };
+            const userName = requester?.name || 'User';
+            const borrowLimit = requester?.borrowLimit || 3;
+            return { success: false, message: `${userName} has reached their borrow limit (${activeBorrows}/${borrowLimit})` };
         }
 
         db.updateRequestStatus(requestId, 'Approved');
