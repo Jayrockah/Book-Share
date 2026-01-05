@@ -208,52 +208,57 @@ export const AuthProvider = ({ children }) => {
 
     const signIn = async (email, password) => {
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            console.log('🔑 Signing in...');
+
+            // Step 1: Auth with timeout
+            const authPromise = supabase.auth.signInWithPassword({ email, password });
+            const authTimeout = new Promise((resolve) =>
+                setTimeout(() => resolve({ data: null, error: { message: 'Sign in timeout' } }), 7000)
+            );
+
+            const { data, error } = await Promise.race([authPromise, authTimeout]);
 
             if (error) {
                 console.error('Auth error:', error.message);
                 return { success: false, error: error.message };
             }
 
-            // Fetch user profile with retries
-            let profile = null;
-            let retries = 3;
-
-            while (!profile && retries > 0) {
-                try {
-                    profile = await getUserProfile(data.user.id);
-                    if (profile) break;
-                } catch (profileError) {
-                    retries--;
-                    if (retries > 0) {
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-                    }
-                }
+            if (!data?.user) {
+                return { success: false, error: 'Sign in failed - no user returned' };
             }
 
-            // If profile doesn't exist after retries, create it
+            console.log('✅ Auth successful, fetching profile...');
+
+            // Step 2: Fetch profile with timeout (one attempt only)
+            const profilePromise = getUserProfile(data.user.id);
+            const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
+
+            let profile = await Promise.race([profilePromise, profileTimeout]);
+
+            // Step 3: Create profile if missing
             if (!profile) {
-                try {
-                    profile = await createUserProfile({
-                        firebase_uid: data.user.id,
-                        name: data.user.email?.split('@')[0] || 'User',
-                        city: 'Lagos'
-                    });
-                } catch (createError) {
-                    console.error('❌ Profile creation failed:', createError);
-                    return { success: false, error: 'Failed to create user profile. Please try again.' };
+                console.log('📝 Creating profile for sign in...');
+                const createPromise = createUserProfile({
+                    firebase_uid: data.user.id,
+                    name: data.user.email?.split('@')[0] || 'User',
+                    city: 'Lagos'
+                });
+                const createTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
+
+                profile = await Promise.race([createPromise, createTimeout]);
+
+                if (!profile) {
+                    return { success: false, error: 'Profile creation timed out. Please try again.' };
                 }
             }
 
             setAuthUser(data.user);
             setUser(profile);
 
+            console.log('✅ Sign in complete!');
             return { success: true, user: profile };
         } catch (error) {
-            console.error('❌ Sign in error:', error);
+            console.error('Sign in error:', error);
             return { success: false, error: error.message || 'Sign in failed. Please try again.' };
         }
     };
