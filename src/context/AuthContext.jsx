@@ -12,26 +12,21 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         let mounted = true;
 
-        // Absolute safety timeout - GUARANTEES loading ends within 12 seconds
+        // Absolute safety timeout - GUARANTEES loading ends within 30 seconds
         const safetyTimeout = setTimeout(() => {
             if (mounted) {
-                console.warn('⏱️ Auth init timeout - forcing loading=false');
+                console.warn('⏱️ Auth init exceeded 30s - forcing loading=false');
                 setLoading(false);
             }
-        }, 12000);
+        }, 30000);
 
         // Check for existing session
         const initAuth = async () => {
             try {
                 console.log('🔐 Starting auth init...');
 
-                // Step 1: Get session (with generous timeout for restored projects)
-                const sessionPromise = supabase.auth.getSession();
-                const sessionTimeout = new Promise((resolve) =>
-                    setTimeout(() => resolve({ data: { session: null }, error: { message: 'Session timeout' } }), 7000)
-                );
-
-                const { data: { session }, error: sessionError } = await Promise.race([sessionPromise, sessionTimeout]);
+                // Step 1: Get session (no timeout - trust Supabase)
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
                 if (sessionError) {
                     console.error('Session error:', sessionError.message);
@@ -54,23 +49,17 @@ export const AuthProvider = ({ children }) => {
                 console.log('👤 Session found, fetching profile...');
                 setAuthUser(session.user);
 
-                // Step 2: Get profile (with timeout)
-                const profilePromise = getUserProfile(session.user.id);
-                const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
+                // Step 2: Get profile (no timeout)
+                let profile = await getUserProfile(session.user.id);
 
-                let profile = await Promise.race([profilePromise, profileTimeout]);
-
-                // Step 3: Create profile if missing (with timeout)
+                // Step 3: Create profile if missing
                 if (!profile) {
                     console.log('📝 Creating profile...');
-                    const createPromise = createUserProfile({
+                    profile = await createUserProfile({
                         firebase_uid: session.user.id,
                         name: session.user.email?.split('@')[0] || 'User',
                         city: 'Lagos'
                     });
-                    const createTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
-
-                    profile = await Promise.race([createPromise, createTimeout]);
                 }
 
                 if (mounted) {
@@ -210,13 +199,11 @@ export const AuthProvider = ({ children }) => {
         try {
             console.log('🔑 Signing in...');
 
-            // Step 1: Auth with timeout
-            const authPromise = supabase.auth.signInWithPassword({ email, password });
-            const authTimeout = new Promise((resolve) =>
-                setTimeout(() => resolve({ data: null, error: { message: 'Sign in timeout' } }), 7000)
-            );
-
-            const { data, error } = await Promise.race([authPromise, authTimeout]);
+            // Step 1: Auth (no timeout - trust Supabase SDK)
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
 
             if (error) {
                 console.error('Auth error:', error.message);
@@ -229,26 +216,20 @@ export const AuthProvider = ({ children }) => {
 
             console.log('✅ Auth successful, fetching profile...');
 
-            // Step 2: Fetch profile with timeout (one attempt only)
-            const profilePromise = getUserProfile(data.user.id);
-            const profileTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
-
-            let profile = await Promise.race([profilePromise, profileTimeout]);
+            // Step 2: Fetch profile (no timeout - let database respond naturally)
+            let profile = await getUserProfile(data.user.id);
 
             // Step 3: Create profile if missing
             if (!profile) {
                 console.log('📝 Creating profile for sign in...');
-                const createPromise = createUserProfile({
+                profile = await createUserProfile({
                     firebase_uid: data.user.id,
                     name: data.user.email?.split('@')[0] || 'User',
                     city: 'Lagos'
                 });
-                const createTimeout = new Promise((resolve) => setTimeout(() => resolve(null), 5000));
-
-                profile = await Promise.race([createPromise, createTimeout]);
 
                 if (!profile) {
-                    return { success: false, error: 'Profile creation timed out. Please try again.' };
+                    return { success: false, error: 'Failed to create profile. Please try again.' };
                 }
             }
 
