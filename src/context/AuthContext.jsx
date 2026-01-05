@@ -4,6 +4,14 @@ import { getUserProfile, createUserProfile } from '../services/userService';
 
 const AuthContext = createContext();
 
+// Helper: Add timeout to any promise
+const withTimeout = (promise, timeoutMs, timeoutValue = null) => {
+    return Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve(timeoutValue), timeoutMs))
+    ]);
+};
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null); // User profile from our users table
     const [authUser, setAuthUser] = useState(null); // Supabase auth user
@@ -25,8 +33,14 @@ export const AuthProvider = ({ children }) => {
             try {
                 console.log('🔐 Starting auth init...');
 
-                // Step 1: Get session (no timeout - trust Supabase)
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                // Step 1: Get session (10s timeout - Supabase hangs in some environments)
+                const sessionResult = await withTimeout(
+                    supabase.auth.getSession(),
+                    10000,
+                    { data: { session: null }, error: { message: 'Session check timed out' } }
+                );
+
+                const { data: { session }, error: sessionError } = sessionResult || { data: { session: null }, error: null };
 
                 if (sessionError) {
                     console.error('Session error:', sessionError.message);
@@ -167,11 +181,14 @@ export const AuthProvider = ({ children }) => {
 
     const signUp = async (email, password, profileData) => {
         try {
-            // 1. Create auth user
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
-                password,
-            });
+            // 1. Create auth user (15s timeout)
+            const signUpResult = await withTimeout(
+                supabase.auth.signUp({ email, password }),
+                15000,
+                { data: null, error: { message: 'Sign up request timed out. Please check your connection.' } }
+            );
+
+            const { data: authData, error: authError } = signUpResult || { data: null, error: { message: 'Signup failed' } };
 
             if (authError) {
                 return { success: false, error: authError.message };
@@ -217,11 +234,14 @@ export const AuthProvider = ({ children }) => {
         try {
             console.log('🔑 Signing in...');
 
-            // Step 1: Auth (no timeout - trust Supabase SDK)
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            // Step 1: Auth (15s timeout - Supabase hangs in some environments)
+            const authResult = await withTimeout(
+                supabase.auth.signInWithPassword({ email, password }),
+                15000,
+                { data: null, error: { message: 'Sign in request timed out. Please check your connection.' } }
+            );
+
+            const { data, error } = authResult || { data: null, error: { message: 'Sign in failed' } };
 
             if (error) {
                 console.error('Auth error:', error.message);
