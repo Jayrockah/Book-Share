@@ -12,12 +12,16 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     auth: {
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey: 'book-share-auth',
+        flowType: 'pkce'
     },
     global: {
         headers: {
             'X-Client-Info': 'book-share-app'
-        }
+        },
+        fetch: typeof fetch !== 'undefined' ? fetch.bind(globalThis) : undefined
     },
     db: {
         schema: 'public'
