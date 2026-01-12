@@ -41,7 +41,7 @@ const ProfilePage = () => {
 
     const myBooks = books.filter(b => b.ownerId === user.id);
     const activeBorrows = db.getUserActiveBorrows(user.id);
-    const isTrustedBorrower = user.reputation >= 4.5;
+    const isTrustedBorrower = (user.profile?.reputation || 0) >= 4.5;
 
     // Books I am borrowing
     const myBorrowRequests = requests.filter(r => r.requesterId === user.id && (r.status === 'Approved' || r.status === 'ReturnedAndPendingConfirm'));
@@ -192,9 +192,9 @@ const ProfilePage = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <span style={{ color: '#fbbf24', marginRight: '4px', fontSize: '1.1rem' }}>★</span>
-                            <span style={{ fontWeight: '600' }}>{user.reputation || 'New'}</span>
+                            <span style={{ fontWeight: '600' }}>{user.profile?.reputation || 'New'}</span>
                         </div>
-                        {user.isAdmin && (
+                        {user.profile?.is_admin && (
                             <span className="badge" style={{ background: '#dbeafe', color: '#1e40af', fontWeight: '600' }}>
                                 ⚡ Admin
                             </span>
@@ -205,7 +205,7 @@ const ProfilePage = () => {
                             </span>
                         )}
                         <span className="text-sm text-muted">
-                            Borrowing {activeBorrows}/{user.borrowLimit} books
+                            Borrowing {activeBorrows}/{user.profile?.borrow_limit || 3} books
                         </span>
                     </div>
                 </div>

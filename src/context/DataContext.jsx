@@ -96,7 +96,7 @@ export const DataProvider = ({ children }) => {
 
     const requestBook = (bookId) => {
         if (!user) return { success: false, message: 'Must be logged in' };
-        if (user.isBanned) return { success: false, message: 'Your account has been banned' };
+        if (user.profile?.is_banned) return { success: false, message: 'Your account has been banned' };
 
         const book = books.find(b => b.id === bookId);
         if (!book) return { success: false, message: 'Book not found' };
@@ -106,7 +106,8 @@ export const DataProvider = ({ children }) => {
         // Check borrow limit
         if (!db.canUserBorrow(user.id)) {
             const activeBorrows = db.getUserActiveBorrows(user.id);
-            return { success: false, message: `You've reached your borrow limit (${activeBorrows}/${user.borrowLimit} books)` };
+            const borrowLimit = user.profile?.borrow_limit || 3;
+            return { success: false, message: `You've reached your borrow limit (${activeBorrows}/${borrowLimit} books)` };
         }
 
         const existing = requests.find(r => r.bookId === bookId && r.requesterId === user.id && r.status === 'Pending');
@@ -253,7 +254,7 @@ export const DataProvider = ({ children }) => {
     };
 
     const banUser = (userId) => {
-        if (!user || !user.isAdmin) return { success: false, message: 'Admin access required' };
+        if (!user || !user.profile?.is_admin) return { success: false, message: 'Admin access required' };
         const result = db.banUser(userId);
         if (result) {
             refreshData();
@@ -263,7 +264,7 @@ export const DataProvider = ({ children }) => {
     };
 
     const unbanUser = (userId) => {
-        if (!user || !user.isAdmin) return { success: false, message: 'Admin access required' };
+        if (!user || !user.profile?.is_admin) return { success: false, message: 'Admin access required' };
         const result = db.unbanUser(userId);
         if (result) {
             refreshData();
@@ -319,7 +320,7 @@ export const DataProvider = ({ children }) => {
 
     const requestOrganizationBook = (organizationBookId) => {
         if (!user) return { success: false, message: 'Must be logged in' };
-        if (user.isBanned) return { success: false, message: 'Your account has been banned' };
+        if (user.profile?.is_banned) return { success: false, message: 'Your account has been banned' };
 
         const request = db.createOrganizationBorrowRequest(organizationBookId, user.id);
         if (request) {
@@ -432,7 +433,7 @@ export const DataProvider = ({ children }) => {
 
     const createBorrowTransaction = (bookId, requestDetails = {}) => {
         if (!user) return { success: false, message: 'Must be logged in' };
-        if (user.isBanned) return { success: false, message: 'Your account has been banned' };
+        if (user.profile?.is_banned) return { success: false, message: 'Your account has been banned' };
 
         const book = books.find(b => b.id === bookId);
         if (!book) return { success: false, message: 'Book not found' };

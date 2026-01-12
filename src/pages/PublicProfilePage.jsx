@@ -30,7 +30,7 @@ const PublicProfilePage = () => {
     }
 
     const userBooks = books.filter(b => b.ownerId === userId);
-    const isTrustedBorrower = user && user.reputation >= 4.5;
+    const isTrustedBorrower = user && (user.reputation || user.profile?.reputation || 0) >= 4.5;
 
     if (!user) return <div className="container">User not found</div>;
 
@@ -91,7 +91,7 @@ const PublicProfilePage = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <span style={{ color: '#fbbf24', marginRight: '4px', fontSize: '1.2rem' }}>★</span>
-                            <span style={{ fontWeight: '600', fontSize: '1.2rem' }}>{user.reputation || 'New'}</span>
+                            <span style={{ fontWeight: '600', fontSize: '1.2rem' }}>{user.reputation || user.profile?.reputation || 'New'}</span>
                         </div>
                         {isTrustedBorrower && (
                             <span className="badge" style={{ background: '#dcfce7', color: '#16a34a', fontWeight: '600' }}>

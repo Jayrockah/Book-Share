@@ -1,174 +1,106 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { getUserProfile, createUserProfile } from '../services/userService';
 
 const AuthContext = createContext();
 
-// Helper: Add timeout to any promise
-const withTimeout = (promise, timeoutMs, timeoutValue = null) => {
-    return Promise.race([
-        promise,
-        new Promise(resolve => setTimeout(() => resolve(timeoutValue), timeoutMs))
-    ]);
-};
-
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null); // User profile from our users table
-    const [authUser, setAuthUser] = useState(null); // Supabase auth user
+    const [user, setUser] = useState(null); // Combined: auth user + profile data
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let mounted = true;
+        let initialAuthComplete = false;
 
-        // Absolute safety timeout - GUARANTEES loading ends within 30 seconds
+        // Safety timeout - guarantee loading ends within 5 seconds
         const safetyTimeout = setTimeout(() => {
-            if (mounted) {
-                console.warn('⏱️ Auth init exceeded 30s - forcing loading=false');
+            if (mounted && !initialAuthComplete) {
+                console.error('⏱️ Auth init timeout - possible RLS or network issue');
                 setLoading(false);
             }
-        }, 30000);
+        }, 5000);
 
-        // Check for existing session
-        const initAuth = async () => {
-            try {
-                console.log('🔐 Starting auth init...');
-
-                // Step 1: Get session (10s timeout - Supabase hangs in some environments)
-                const sessionResult = await withTimeout(
-                    supabase.auth.getSession(),
-                    10000,
-                    { data: { session: null }, error: { message: 'Session check timed out' } }
-                );
-
-                const { data: { session }, error: sessionError } = sessionResult || { data: { session: null }, error: null };
-
-                if (sessionError) {
-                    console.error('Session error:', sessionError.message);
-                    setAuthUser(null);
-                    setUser(null);
-                    setLoading(false);
-                    clearTimeout(safetyTimeout);
-                    return;
-                }
-
-                if (!session?.user) {
-                    console.log('ℹ️ No active session');
-                    setAuthUser(null);
-                    setUser(null);
-                    setLoading(false);
-                    clearTimeout(safetyTimeout);
-                    return;
-                }
-
-                console.log('👤 Session found, fetching profile...');
-                setAuthUser(session.user);
-
-                // Step 2: Get profile (no timeout)
-                let profile = await getUserProfile(session.user.id);
-
-                // Step 3: Create profile if missing
-                if (!profile) {
-                    console.log('📝 Creating profile...');
-                    try {
-                        profile = await createUserProfile({
-                            firebase_uid: session.user.id,
-                            name: session.user.email?.split('@')[0] || 'User',
-                            city: 'Lagos'
-                        });
-                    } catch (createError) {
-                        console.error('Failed to create profile during init:', createError);
-                        // Profile creation failed - sign out and show login
-                        await supabase.auth.signOut();
-                        setAuthUser(null);
-                        setUser(null);
-                        setLoading(false);
-                        clearTimeout(safetyTimeout);
-                        return;
-                    }
-                }
-
-                // Only proceed if we have a valid profile
-                if (mounted && profile) {
-                    setUser(profile);
-                    setLoading(false);
-                    clearTimeout(safetyTimeout);
-                    console.log('✅ Auth init complete');
-                } else {
-                    console.error('No profile available after init');
-                    setAuthUser(null);
-                    setUser(null);
-                    setLoading(false);
-                    clearTimeout(safetyTimeout);
-                }
-            } catch (error) {
-                console.error('Auth init error:', error);
-                if (mounted) {
-                    setAuthUser(null);
-                    setUser(null);
-                    setLoading(false);
-                    clearTimeout(safetyTimeout);
-                }
-            }
-        };
-
-        initAuth();
-
-        // Listen for auth changes
+        // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            // Only process INITIAL_SESSION and SIGNED_IN events to avoid unnecessary calls
-            if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') {
-                if (!session?.user) {
-                    setAuthUser(null);
+            // Handle SIGNED_OUT
+            if (event === 'SIGNED_OUT') {
+                if (mounted) {
                     setUser(null);
+                    setLoading(false);
+                    initialAuthComplete = true;
                 }
                 return;
             }
 
-            try {
-                if (session?.user) {
-                    setAuthUser(session.user);
-
-                    // Fetch user profile with retry logic
-                    let profile = null;
-                    let retries = 2;
-
-                    while (!profile && retries > 0) {
-                        try {
-                            profile = await getUserProfile(session.user.id);
-                            if (profile) break;
-                        } catch (err) {
-                            retries--;
-                            if (retries > 0) {
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                            }
-                        }
+            // Handle INITIAL_SESSION (fired on mount if session exists)
+            if (event === 'INITIAL_SESSION') {
+                if (!session) {
+                    if (mounted) {
+                        setUser(null);
+                        setLoading(false);
+                        initialAuthComplete = true;
+                        clearTimeout(safetyTimeout);
                     }
-
-                    // If profile doesn't exist after retries, create it
-                    if (!profile) {
-                        try {
-                            profile = await createUserProfile({
-                                firebase_uid: session.user.id,
-                                name: session.user.email?.split('@')[0] || 'User',
-                                city: 'Lagos'
-                            });
-                        } catch (createError) {
-                            console.error('Failed to create profile in auth state change:', createError);
-                            // Don't sign out - just set user to null and let them try again
-                            setUser(null);
-                            return;
-                        }
-                    }
-
-                    setUser(profile);
-                } else {
-                    setAuthUser(null);
-                    setUser(null);
+                    return;
                 }
-            } catch (error) {
-                console.error('Error in auth state change:', error);
-                // Don't clear auth, just clear user profile
-                setUser(null);
+
+                // Fetch profile for initial session
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (mounted) {
+                    if (error) {
+                        console.error('Profile error:', error);
+                        setUser(null);
+                    } else if (profile) {
+                        setUser({ ...session.user, profile });
+                    } else {
+                        setUser(null);
+                    }
+                    setLoading(false);
+                    initialAuthComplete = true;
+                    clearTimeout(safetyTimeout);
+                }
+                return;
+            }
+
+            // Handle SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+                if (session?.user) {
+                    const { data: profile, error } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single();
+
+                    if (mounted) {
+                        if (error) {
+                            console.error('Profile error:', error);
+                            setUser(null);
+                        } else if (profile) {
+                            setUser({ ...session.user, profile });
+                        } else {
+                            setUser(null);
+                        }
+
+                        if (!initialAuthComplete) {
+                            setLoading(false);
+                            initialAuthComplete = true;
+                            clearTimeout(safetyTimeout);
+                        }
+                    }
+                } else {
+                    if (mounted) {
+                        setUser(null);
+                        if (!initialAuthComplete) {
+                            setLoading(false);
+                            initialAuthComplete = true;
+                            clearTimeout(safetyTimeout);
+                        }
+                    }
+                }
             }
         });
 
@@ -179,120 +111,125 @@ export const AuthProvider = ({ children }) => {
         };
     }, []);
 
+    /**
+     * Sign up with email and password
+     * @param {string} email - User email
+     * @param {string} password - User password
+     * @param {object} profileData - Additional profile data (name, city)
+     */
     const signUp = async (email, password, profileData) => {
         try {
-            // 1. Create auth user (15s timeout)
-            const signUpResult = await withTimeout(
-                supabase.auth.signUp({ email, password }),
-                15000,
-                { data: null, error: { message: 'Sign up request timed out. Please check your connection.' } }
-            );
+            console.log('📝 Signing up...');
 
-            const { data: authData, error: authError } = signUpResult || { data: null, error: { message: 'Signup failed' } };
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    // This metadata is passed to the trigger
+                    data: {
+                        name: profileData.name || 'New User',
+                        city: profileData.city || ''
+                    }
+                }
+            });
 
-            if (authError) {
-                return { success: false, error: authError.message };
+            if (error) {
+                console.error('Signup error:', error);
+                return { success: false, error: error.message };
             }
 
-            if (!authData.user) {
+            if (!data.user) {
                 return { success: false, error: 'Signup failed - no user returned' };
             }
 
-            // 2. Check if we have an active session (required for RLS to work)
-            if (!authData.session) {
-                // Email confirmation is required - user needs to verify email first
+            // Check if email confirmation is required
+            if (!data.session) {
                 return {
                     success: true,
                     requiresEmailConfirmation: true,
-                    message: 'Please check your email to confirm your account before signing in.'
+                    message: 'Please check your email to confirm your account.'
                 };
             }
 
-            // 3. Create user profile in users table (session is active, auth.uid() will work)
-            try {
-                const profile = await createUserProfile({
-                    firebase_uid: authData.user.id,
-                    name: profileData.name,
-                    city: profileData.city
-                });
+            // Profile was created by trigger, fetch it
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
 
-                setAuthUser(authData.user);
-                setUser(profile);
+            setUser({
+                ...data.user,
+                profile
+            });
 
-                return { success: true, user: profile };
-            } catch (profileError) {
-                console.error('Profile creation error:', profileError);
-                return { success: false, error: 'Failed to create user profile. Please try again.' };
-            }
+            console.log('✅ Signup complete!');
+            return { success: true, user: data.user };
         } catch (error) {
             console.error('Signup error:', error);
-            return { success: false, error: error.message || 'Signup failed. Please try again.' };
+            return { success: false, error: error.message || 'Signup failed' };
         }
     };
 
+    /**
+     * Sign in with email and password
+     * @param {string} email - User email
+     * @param {string} password - User password
+     */
     const signIn = async (email, password) => {
         try {
             console.log('🔑 Signing in...');
 
-            // Step 1: Auth (15s timeout - Supabase hangs in some environments)
-            const authResult = await withTimeout(
-                supabase.auth.signInWithPassword({ email, password }),
-                15000,
-                { data: null, error: { message: 'Sign in request timed out. Please check your connection.' } }
-            );
-
-            const { data, error } = authResult || { data: null, error: { message: 'Sign in failed' } };
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
 
             if (error) {
-                console.error('Auth error:', error.message);
+                console.error('Sign in error:', error);
                 return { success: false, error: error.message };
             }
 
-            if (!data?.user) {
+            if (!data.user) {
                 return { success: false, error: 'Sign in failed - no user returned' };
             }
 
-            console.log('✅ Auth successful, fetching profile...');
+            // Fetch profile
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .single();
 
-            // Step 2: Fetch profile (no timeout - let database respond naturally)
-            let profile = await getUserProfile(data.user.id);
-
-            // Step 3: Create profile if missing
-            if (!profile) {
-                console.log('📝 Creating profile for sign in...');
-                try {
-                    profile = await createUserProfile({
-                        firebase_uid: data.user.id,
-                        name: data.user.email?.split('@')[0] || 'User',
-                        city: 'Lagos'
-                    });
-                } catch (createError) {
-                    console.error('Profile creation failed:', createError);
-                    return { success: false, error: 'Failed to create your profile. Please try again.' };
-                }
+            if (profileError) {
+                console.error('Profile error:', profileError);
+                console.error('⚠️ Your account exists but has no profile in the database.');
+                console.error('This happens for accounts created before the rebuild.');
+                console.error('Solution: Run create-profile-for-existing-user.sql OR sign up with a new account.');
+                // Sign them out since they can't use the app without a profile
+                await supabase.auth.signOut();
+                return { success: false, error: 'Could not load user profile. Your account needs to be migrated. Please contact support or create a new account.' };
             }
 
-            // Verify we have a valid profile before proceeding
-            if (!profile || !profile.id) {
-                console.error('Invalid profile after sign in');
-                return { success: false, error: 'Profile data is invalid. Please contact support.' };
-            }
-
-            setAuthUser(data.user);
-            setUser(profile);
+            setUser({
+                ...data.user,
+                profile
+            });
 
             console.log('✅ Sign in complete!');
-            return { success: true, user: profile };
+            return { success: true, user: data.user };
         } catch (error) {
             console.error('Sign in error:', error);
-            return { success: false, error: error.message || 'Sign in failed. Please try again.' };
+            return { success: false, error: error.message || 'Sign in failed' };
         }
     };
 
+    /**
+     * Sign out current user
+     */
     const logout = async () => {
         try {
             await supabase.auth.signOut();
-            setAuthUser(null);
             setUser(null);
             return { success: true };
         } catch (error) {
@@ -301,22 +238,69 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    /**
+     * Refresh user profile data
+     */
     const refreshUserProfile = async () => {
-        if (authUser) {
-            const profile = await getUserProfile(authUser.id);
-            setUser(profile);
+        if (user?.id) {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (profile) {
+                setUser({
+                    ...user,
+                    profile
+                });
+            }
+        }
+    };
+
+    /**
+     * Update user profile
+     * @param {object} updates - Fields to update
+     */
+    const updateProfile = async (updates) => {
+        if (!user?.id) {
+            return { success: false, error: 'Not authenticated' };
+        }
+
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', user.id)
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Update profile error:', error);
+                return { success: false, error: error.message };
+            }
+
+            setUser({
+                ...user,
+                profile: data
+            });
+
+            return { success: true, profile: data };
+        } catch (error) {
+            console.error('Update profile error:', error);
+            return { success: false, error: error.message };
         }
     };
 
     return (
         <AuthContext.Provider value={{
             user,
-            authUser,
             loading,
             signUp,
             signIn,
             logout,
-            refreshUserProfile
+            refreshUserProfile,
+            updateProfile
         }}>
             {children}
         </AuthContext.Provider>
@@ -324,4 +308,10 @@ export const AuthProvider = ({ children }) => {
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider');
+    }
+    return context;
+};

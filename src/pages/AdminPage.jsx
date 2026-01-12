@@ -20,7 +20,7 @@ const AdminPage = () => {
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         // Redirect if not admin
-        if (!user || !user.isAdmin) {
+        if (!user || !user.profile?.is_admin) {
             navigate('/home');
             return;
         }
