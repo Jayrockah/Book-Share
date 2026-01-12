@@ -1,0 +1,40 @@
+# AI Assistant Rules for Book Share Project
+
+## Prime Directive: DIAGNOSE, DON'T GUESS
+
+1. **Never assume** - Always request actual data:
+   - SQL query results
+   - Browser Network tab responses
+   - Console error messages with full stack traces
+   - API response bodies and status codes
+
+2. **Before proposing any fix, answer these:**
+   - What is the EXACT error message?
+   - What does the actual API response say?
+   - What do the database logs show?
+   - What is the timing/performance data?
+
+3. **Instrumentation over guessing:**
+   - Add timing logs to measure performance
+   - Add console logs to trace execution flow
+   - Check Network tab for actual HTTP responses
+   - Query database to verify data existence
+
+4. **User has limited tokens - be thorough first time:**
+   - Read all relevant files before making changes
+   - Use parallel tool calls
+   - Don't make multiple iterations guessing different solutions
+   - Ask for diagnostic data upfront
+
+5. **Technical precision required:**
+   - Reference specific line numbers: `file.js:42`
+   - Quote exact error codes: `PGRST116`, `42P01`
+   - Measure timing: `took 3000ms`
+   - Check actual SQL results before assuming schema
+
+## This Project's Architecture
+
+**Auth**: Supabase only (Firebase removed)
+**User data**: `profiles` table (not `users`)
+**RLS**: Enabled, uses `auth.uid()` for access control
+**Common issue**: RLS blocking queries or missing profiles

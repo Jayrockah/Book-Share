@@ -1,0 +1,79 @@
+# Claude Code Instructions for Book Share Project
+
+## CRITICAL: Debugging Methodology
+
+**NEVER GUESS. ALWAYS DIAGNOSE WITH DATA.**
+
+When encountering errors or issues:
+
+1. **Read actual error messages** - Don't assume what's wrong
+   - Check browser console for exact errors
+   - Check Network tab for API responses (status codes, response bodies)
+   - Check server logs if applicable
+
+2. **Use diagnostic queries FIRST** - Before proposing fixes:
+   ```sql
+   -- Check if data exists
+   SELECT * FROM table WHERE condition;
+
+   -- Check policies
+   SELECT * FROM pg_policies WHERE tablename = 'table_name';
+
+   -- Check actual error codes
+   ```
+
+3. **Identify root cause before fixing**:
+   - Is it a database issue? → Check RLS policies, table structure
+   - Is it a network issue? → Check API endpoints, CORS, credentials
+   - Is it a code logic issue? → Add console.log timing markers
+   - Is it an auth issue? → Check JWT, session storage, Supabase auth state
+
+4. **Add instrumentation to measure, not just timeout:**
+   ```javascript
+   // GOOD - Diagnostic timing
+   const start = performance.now();
+   const result = await operation();
+   console.log(`Operation took ${performance.now() - start}ms`);
+
+   // BAD - Just adding timeouts without knowing why
+   setTimeout(() => giveUp(), 5000);
+   ```
+
+5. **Ask for data when you don't have it:**
+   - "Check the Network tab and tell me the response status"
+   - "Run this SQL query and share the result"
+   - "What does the browser console show?"
+
+## Project-Specific Context
+
+### Authentication Architecture
+- **Single auth system**: Supabase only (Firebase removed)
+- **Profile management**: Profiles table with auto-create trigger
+- **RLS policies**: Users can read own profile via `auth.uid()`
+
+### Common Issues
+- **Auth hangs**: Usually RLS blocking queries or missing profiles
+- **"Could not load user profile"**: Profile doesn't exist OR RLS blocking
+- **Session issues**: Clear localStorage, check JWT validity
+
+### Database Schema
+- `profiles` table (not `users`) → linked to `auth.users`
+- All services query `profiles` for user data
+- RLS enabled on all tables
+
+### Debugging Commands
+```bash
+# Check Supabase connection
+curl -H "apikey: $VITE_SUPABASE_ANON_KEY" "$VITE_SUPABASE_URL/rest/v1/"
+
+# Check RLS policies
+# Run in Supabase SQL Editor:
+SELECT * FROM pg_policies WHERE schemaname = 'public';
+```
+
+## Token Conservation
+- User has limited tokens
+- Be thorough on first attempt
+- Don't make multiple trips for same issue
+- Read all relevant files in parallel
+- Use parallel tool calls when possible
